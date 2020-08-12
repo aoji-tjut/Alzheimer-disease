@@ -12,10 +12,6 @@ X1 = X[45, :, :]
 X2 = X[:, 55, :]
 X3 = X[:, :, 45]
 
-print(X1.shape)
-print(X2.shape)
-print(X3.shape)
-
 X1 = cv.cvtColor(X1, cv.COLOR_GRAY2RGB)
 X2 = cv.cvtColor(X2, cv.COLOR_GRAY2RGB)
 X3 = cv.cvtColor(X3, cv.COLOR_GRAY2RGB)
