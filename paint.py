@@ -2,7 +2,7 @@ import numpy as np
 import nibabel as nib
 import cv2 as cv
 
-X = nib.load("./samples/AD_nii/15.nii")
+X = nib.load("./samples/AD_nii/6.nii")
 X = np.array(X.get_fdata())
 print(X.shape)
 
