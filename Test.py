@@ -3,6 +3,8 @@ import numpy as np
 import nibabel as nib
 import pickle
 import cv2 as cv
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 
 def Paint(X, flag):
@@ -59,6 +61,30 @@ def Paint(X, flag):
     X2 = cv.resize(X2, (91, 91))
     X3 = cv.resize(X3, (109, 91))
 
+    # plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
+    plt.rcParams['axes.unicode_minus'] = False
+
+    plt.figure()
+    plt.subplot(131)
+    plt.imshow(X3)
+    plt.title('轴向切面')
+    plt.subplot(132)
+    plt.imshow(X1)
+    plt.title('矢状切面')
+    plt.subplot(133)
+    plt.imshow(X2)
+    plt.title('冠状切面')
+
+    color = ['lightskyblue', 'blue', 'red', 'green']
+    labels = ['颞叶', '额叶', '海马体', '扣带回']
+    patches = [mpatches.Patch(color=color[i], label="{:s}".format(labels[i])) for i in range(len(color))]
+    ax = plt.gca()
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width, box.height * 0.8])
+    ax.legend(handles=patches, loc='best', bbox_to_anchor=(2, 2), ncol=4)
+
+    plt.savefig('./image/result/result.png', bbox_inches='tight', transparent=True)
     cv.imwrite("./image/result/X1_label.png", X1)
     cv.imwrite("./image/result/X2_label.png", X2)
     cv.imwrite("./image/result/X3_label.png", X3)
