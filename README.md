@@ -1,2 +1,0 @@
-# Alzheimer disease
- Alzheimer disease
