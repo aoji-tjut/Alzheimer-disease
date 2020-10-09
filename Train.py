@@ -1,3 +1,4 @@
+import os
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -7,36 +8,60 @@ from sklearn.preprocessing import StandardScaler
 import nibabel as nib
 import pickle
 
+l,w,h=0,0,0
+
+def file_name(file_dir):
+    for files in os.walk(file_dir):
+        pass
+    return files
 
 def LoadData():
+    ad_files = file_name("./samples/AD_nii/")
+    nc_files = file_name("./samples/NC_nii/")
+
+    global l,w,h
+    l,w,h=np.array(nib.load(str(ad_files[0]) + str(ad_files[2][0])).get_fdata()).shape
+    print("l w h = ",l,w,h)
+
     AD = []
-    for i in range(15):
-        image = nib.load("./samples/AD_nii/%d.nii" % (i + 1))
-        image_array = np.array(image.get_fdata()).reshape(1, -1)
+    num1=0
+    for i in ad_files[2]:
+        file = str(ad_files[0]) + str(ad_files[2][num1])
+        print(file)
+        image = nib.load(file)
+        image_array = np.array(image.get_fdata())
+        image_array = image_array[48:144,48:144,40:120]
+        image_array = image_array.reshape(1, -1)
         AD = np.append(AD, image_array)
-    AD = AD.reshape(15, -1)
-    print(AD.shape)
+        num1=num1+1
+    AD = AD.reshape(num1, -1)
+    print("AD.shape=",AD.shape)
 
     NC = []
-    for i in range(15):
-        image = nib.load("./samples/NC_nii/%d.nii" % (i + 1))
-        image_array = np.array(image.get_fdata()).reshape(1, -1)
+    num2 = 0
+    for i in nc_files[2]:
+        file=str(nc_files[0]) + str(nc_files[2][num2])
+        print(file)
+        image = nib.load(file)
+        image_array = np.array(image.get_fdata())
+        image_array = image_array[48:144, 48:144, 40:120]
+        image_array = image_array.reshape(1, -1)
         NC = np.append(NC, image_array)
-    NC = NC.reshape(15, -1)
-    print(NC.shape)
+        num2=num2+1
+    NC = NC.reshape(num2, -1)
+    print("NC.shape=",NC.shape)
 
     X = np.vstack([AD, NC])
-    print(X.shape)
+    print("X.shape=",X.shape)
 
-    y = [1] * 15 + [0] * 15
-    y = np.asarray(y).reshape(30, 1)
-    print(y.shape)
+    y = [1] * num1 + [0] * num2
+    y = np.asarray(y).reshape(-1, 1)
 
     return X, y
 
 
 def Preprocessing(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 
     ss = StandardScaler()
 
@@ -44,53 +69,62 @@ def Preprocessing(X, y):
     X_test = ss.transform(X_test)
     pickle.dump(ss, open("./ss.pkl", "wb"))
 
-    X_train = X_train.reshape([-1, 91, 109, 91, 1])
-    X_test = X_test.reshape([-1, 91, 109, 91, 1])
+    X_train = X_train.reshape([-1, l//2, w//2, h//2, 1])
+    X_test = X_test.reshape([-1, l//2, w//2, h//2, 1])
 
     return X_train, X_test, y_train, y_test
 
 
 if __name__ == '__main__':
-    # gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
-    # cpus = tf.config.experimental.list_physical_devices(device_type='CPU')
-    # print(gpus, cpus)
-    # tf.config.experimental.set_visible_devices(devices=gpus[0], device_type='GPU')
-    # for gpu in gpus:
-    #     tf.config.experimental.set_memory_growth(gpu, True)
-    # tf.config.experimental.set_virtual_device_configuration(
-    #     gpus[0],
-    #     [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=2048)]
-    # )
-
     X, y = LoadData()
     X_train, X_test, y_train, y_test = Preprocessing(X, y)
-    print(X_train.shape)
-    print(y_train.shape)
+    print("X_train.shape=",X_train.shape)
+    print("y_train.shape=",y_train.shape)
 
-    model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Conv3D(128, kernel_size=5, strides=3, padding="valid", activation="selu",
-                                     input_shape=[91, 109, 91, 1]))
-    model.add(tf.keras.layers.MaxPool3D())
-    model.add(tf.keras.layers.Conv3D(256, kernel_size=3, strides=1, padding="valid", activation="selu"))
-    model.add(tf.keras.layers.MaxPool3D())
-    model.add(tf.keras.layers.Conv3D(512, kernel_size=3, strides=1, padding="valid", activation="selu"))
-    model.add(tf.keras.layers.MaxPool3D())
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(1024, activation="selu"))
-    model.add(tf.keras.layers.Dense(256, activation="selu"))
-    model.add(tf.keras.layers.Dense(32, activation="selu"))
-    model.add(tf.keras.layers.Dense(2, activation="softmax"))
-    model.summary()
+    with tf.device("/gpu:0"):
+        model = tf.keras.models.Sequential()
+        model.add(tf.keras.layers.Conv3D(64, kernel_size=3, strides=1, padding="valid", activation="selu",
+                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),
+                                         input_shape=[l//2, w//2, h//2, 1]))
+#        model.add(tf.keras.layers.Dropout(0.5))
+        model.add(tf.keras.layers.MaxPool3D())
+        model.add(tf.keras.layers.Conv3D(128, kernel_size=3, strides=1, padding="valid", activation="selu",
+                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),))
+#        model.add(tf.keras.layers.Dropout(0.5))
+        model.add(tf.keras.layers.MaxPool3D())
+        model.add(tf.keras.layers.Conv3D(256, kernel_size=3, strides=1, padding="valid", activation="selu",
+                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),))
+#        model.add(tf.keras.layers.Dropout(0.5))
+        model.add(tf.keras.layers.MaxPool3D())
+        model.add(tf.keras.layers.Conv3D(512, kernel_size=3, strides=1, padding="valid", activation="selu",
+                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),))
+#        model.add(tf.keras.layers.Dropout(0.5))
+        model.add(tf.keras.layers.MaxPool3D())
+        model.add(tf.keras.layers.Flatten())
+#        model.add(tf.keras.layers.Dense(1024, activation="selu"))
+#        model.add(tf.keras.layers.Dropout(0.5))
+#        model.add(tf.keras.layers.Dense(512, activation="selu"))
+#        model.add(tf.keras.layers.Dropout(0.5))
+#        model.add(tf.keras.layers.Dense(128, activation="selu"))
+#        model.add(tf.keras.layers.Dropout(0.5))
+        model.add(tf.keras.layers.Dense(2, activation="softmax"))
+        model.summary()
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00003), loss="sparse_categorical_crossentropy",
-                  metrics=["acc"])
-    history = model.fit(X_train, y_train, batch_size=5, epochs=30, validation_split=0.2)
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001), loss="sparse_categorical_crossentropy",
+                      metrics=["acc"])
+        history = model.fit(X_train, y_train, batch_size=5, epochs=100, validation_split=0.2)
 
-    model.evaluate(X_test, y_test)
+        model.evaluate(X_test, y_test)
 
-    pd.DataFrame(history.history).plot(figsize=(8, 5))
+    plt.figure(1,(8,5))
+    plt.ylim(0,1)
     plt.grid(True)
-    plt.gca().set_ylim(0, 1)
+    # plt.plot(history.epoch, history.history.get("loss"), label="loss")
+    # plt.plot(history.epoch, history.history.get("val_loss"), label="val_loss")
+    plt.plot(history.epoch, history.history.get("acc"), label="acc")
+    plt.plot(history.epoch, history.history.get("val_acc"), label="val_acc")
+    plt.legend()
     plt.show()
+    plt.savefig("./a.png")
 
     model.save("./model.h5")
