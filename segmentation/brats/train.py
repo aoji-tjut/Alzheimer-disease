@@ -8,12 +8,12 @@ from unet3d.training import load_old_model, train_model
 
 
 config = dict()
-config["image_shape"] = (128, 128, 128)  # This determines what shape the images will be cropped/resampled to.
-config["patch_shape"] = (64, 64, 64)  # switch to None to train on the whole image
-config["labels"] = (1, 2, 4)  # the label numbers on the input image
-config["n_base_filters"] = 16  # these are doubled after each downsampling
+config["image_shape"] = (256, 256, 20)  # This determines what shape the images will be cropped/resampled to.
+config["patch_shape"] = (32,32,32)  # None  # switch to None to train on the whole image
+config["labels"] = (4, 5)  # the label numbers on the input image
+config["n_base_filters"] = 32  # these are doubled after each downsampling
 config["n_labels"] = len(config["labels"])
-# config["all_modalities"] = ["t1"]  # set for the brats data
+#config["all_modalities"] = ["t1", "t1ce", "flair", "t2"]  # set for the brats data
 config["all_modalities"] = ["t1"]  # set for the brats data
 config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
 config["nb_channels"] = len(config["training_modalities"])
@@ -27,9 +27,9 @@ config["deconvolution"] = True  # if False, will use upsampling instead of decon
 config["batch_size"] = 1
 config["validation_batch_size"] = 2
 config["n_epochs"] = 500  # cutoff the training after this many epochs
-config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
-config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
-config["initial_learning_rate"] = 5e-4
+config["patience"] = 20  # learning rate will be reduced after this many epochs if the validation loss is not improving
+config["early_stop"] = 100  # training will be stopped after this many epochs without the validation loss improving
+config["initial_learning_rate"] = 0.03
 config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
 config["validation_split"] = 0.8  # portion of the data that will be used for training
 config["flip"] = False  # augments the data by randomly flipping an axis during
@@ -40,10 +40,10 @@ config["validation_patch_overlap"] = 0  # if > 0, during training, validation pa
 config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
 config["skip_blank"] = True  # if True, then patches without any target will be skipped
 
-config["data_file"] = os.path.abspath("brats_data.h5")
-config["model_file"] = os.path.abspath("unet_model.h5")
-config["training_file"] = os.path.abspath("training_ids.pkl")
-config["validation_file"] = os.path.abspath("validation_ids.pkl")
+config["data_file"] = os.path.abspath("ad_training_data.h5")
+config["model_file"] = os.path.abspath("ad_unet_model.h5")
+config["training_file"] = os.path.abspath("ad_training_ids.pkl")
+config["validation_file"] = os.path.abspath("ad_validation_ids.pkl")
 config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
 
 
@@ -53,13 +53,18 @@ def fetch_brats_2020_files(modalities, group="Train", include_truth=True, return
     modalities = list(modalities)
     if include_truth:
         modalities = modalities + ["seg"]
-    for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data", "*{0}*", "*{0}*").format(group)):
+
+    for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data/{0}/*/T1", "*{0}*").format(group)):
         subject_id = os.path.basename(subject_dir)
+        print(subject_id)
         subject_ids.append(subject_id)
+        print(subject_ids)
         subject_files = list()
         for modality in modalities:
             subject_files.append(os.path.join(subject_dir, subject_id + "_" + modality + ".nii"))
+        print(subject_files)
         training_data_files.append(tuple(subject_files))
+    
     if return_subject_ids:
         return training_data_files, subject_ids
     else:
