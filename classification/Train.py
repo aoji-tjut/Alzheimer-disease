@@ -7,55 +7,89 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import nibabel as nib
 import pickle
+import cv2 as cv
 
-l,w,h=0,0,0
 
 def file_name(file_dir):
     for files in os.walk(file_dir):
         pass
     return files
 
-def LoadData():
-    ad_files = file_name("./samples/AD_nii/")
-    nc_files = file_name("./samples/NC_nii/")
 
-    global l,w,h
-    l,w,h=np.array(nib.load(str(ad_files[0]) + str(ad_files[2][0])).get_fdata()).shape
-    print("l w h = ",l,w,h)
+def MakeData():
+    ad_files = file_name("./data/AD/")
+    dementia_files = file_name("./data/Dementia/")
+    mci_files = file_name("./data/MCI/")
+    normal_files = file_name("./data/Normal/")
+    pd_files = file_name("./data/PD/")
+    # files = [ad_files, dementia_files, mci_files, normal_files, pd_files]
 
-    AD = []
-    num1=0
-    for i in ad_files[2]:
-        file = str(ad_files[0]) + str(ad_files[2][num1])
-        print(file)
-        image = nib.load(file)
-        image_array = np.array(image.get_fdata())
-        image_array = image_array[48:144,48:144,40:120]
-        image_array = image_array.reshape(1, -1)
-        AD = np.append(AD, image_array)
-        num1=num1+1
-    AD = AD.reshape(num1, -1)
-    print("AD.shape=",AD.shape)
+    ad = np.array([])
+    dementia = np.array([])
+    mci = np.array([])
+    normal = np.array([])
+    pd = np.array([])
+    # nii = np.array([ad, dementia, mci, normal, pd])
 
-    NC = []
-    num2 = 0
-    for i in nc_files[2]:
-        file=str(nc_files[0]) + str(nc_files[2][num2])
-        print(file)
-        image = nib.load(file)
-        image_array = np.array(image.get_fdata())
-        image_array = image_array[48:144, 48:144, 40:120]
-        image_array = image_array.reshape(1, -1)
-        NC = np.append(NC, image_array)
-        num2=num2+1
-    NC = NC.reshape(num2, -1)
-    print("NC.shape=",NC.shape)
+    ####################################################################################################################
+    for n_file in range(len(ad_files[2])):
+        data = np.array(nib.load(str(ad_files[0]) + str(ad_files[2][n_file])).get_fdata())
+        for n_channel in range(20):
+            resize = cv.resize(data[:, :, n_channel], (256, 256))
+            ad = np.append(ad, resize)
+    ad = ad.reshape([-1, 256, 256, 20])
+    print(ad.shape)
 
-    X = np.vstack([AD, NC])
-    print("X.shape=",X.shape)
+    for n_file in range(len(dementia_files[2])):
+        data = np.array(nib.load(str(dementia_files[0]) + str(dementia_files[2][n_file])).get_fdata())
+        for n_channel in range(20):
+            resize = cv.resize(data[:, :, n_channel], (256, 256))
+            dementia = np.append(dementia, resize)
+    dementia = dementia.reshape([-1, 256, 256, 20])
+    print(dementia.shape)
 
-    y = [1] * num1 + [0] * num2
+    for n_file in range(len(mci_files[2])):
+        data = np.array(nib.load(str(mci_files[0]) + str(mci_files[2][n_file])).get_fdata())
+        for n_channel in range(20):
+            resize = cv.resize(data[:, :, n_channel], (256, 256))
+            mci = np.append(mci, resize)
+    mci = mci.reshape([-1, 256, 256, 20])
+    print(mci.shape)
+
+    for n_file in range(len(normal_files[2])):
+        data = np.array(nib.load(str(normal_files[0]) + str(normal_files[2][n_file])).get_fdata())
+        for n_channel in range(20):
+            resize = cv.resize(data[:, :, n_channel], (256, 256))
+            normal = np.append(normal, resize)
+    normal = normal.reshape([-1, 256, 256, 20])
+    print(normal.shape)
+
+    for n_file in range(len(pd_files[2])):
+        data = np.array(nib.load(str(pd_files[0]) + str(pd_files[2][n_file])).get_fdata())
+        for n_channel in range(20):
+            resize = cv.resize(data[:, :, n_channel], (256, 256))
+            pd = np.append(pd, resize)
+    pd = pd.reshape([-1, 256, 256, 20])
+    print(pd.shape)
+
+    X = np.vstack([normal, ad, dementia, mci, pd]).reshape(
+        normal.shape[0] + ad.shape[0] + dementia.shape[0] + mci.shape[0] + pd.shape[0], -1)
+    print(X.shape)
+    ####################################################################################################################
+
+    y = [0] * normal.shape[0] + [1] * ad.shape[0] + [2] * dementia.shape[0] + [3] * mci.shape[0] + [4] * pd.shape[0]
     y = np.asarray(y).reshape(-1, 1)
+    print(y.shape)
+
+    ####################################################################################################################
+    np.savetxt("./data/X.txt", X)
+    np.savetxt("./data/y.txt", y)
+
+
+def LoadData():
+    X = np.loadtxt("./data/X.txt")
+    y = np.loadtxt("./data/y.txt")
+
 
     return X, y
 
@@ -69,62 +103,63 @@ def Preprocessing(X, y):
     X_test = ss.transform(X_test)
     pickle.dump(ss, open("./ss.pkl", "wb"))
 
-    X_train = X_train.reshape([-1, l//2, w//2, h//2, 1])
-    X_test = X_test.reshape([-1, l//2, w//2, h//2, 1])
+    X_train = X_train.reshape([-1, 256, 256, 20, 1])
+    X_test = X_test.reshape([-1, 256, 256, 20, 1])
+
+    pickle.dump(ss, open("./ss.pkl", "wb"))
+    pickle.dump(ss, open("./ss.pkl", "wb"))
+    pickle.dump(ss, open("./ss.pkl", "wb"))
+    pickle.dump(ss, open("./ss.pkl", "wb"))
+
 
     return X_train, X_test, y_train, y_test
 
 
 if __name__ == '__main__':
+    print("Loading Data...")
     X, y = LoadData()
+
+    print("Preprocessing Data...")
     X_train, X_test, y_train, y_test = Preprocessing(X, y)
-    print("X_train.shape=",X_train.shape)
-    print("y_train.shape=",y_train.shape)
+    print("X_train.shape=", X_train.shape)
+    print("y_train.shape=", y_train.shape)
 
-    with tf.device("/gpu:0"):
-        model = tf.keras.models.Sequential()
-        model.add(tf.keras.layers.Conv3D(64, kernel_size=3, strides=1, padding="valid", activation="selu",
-                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),
-                                         input_shape=[l//2, w//2, h//2, 1]))
-#        model.add(tf.keras.layers.Dropout(0.5))
-        model.add(tf.keras.layers.MaxPool3D())
-        model.add(tf.keras.layers.Conv3D(128, kernel_size=3, strides=1, padding="valid", activation="selu",
-                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),))
-#        model.add(tf.keras.layers.Dropout(0.5))
-        model.add(tf.keras.layers.MaxPool3D())
-        model.add(tf.keras.layers.Conv3D(256, kernel_size=3, strides=1, padding="valid", activation="selu",
-                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),))
-#        model.add(tf.keras.layers.Dropout(0.5))
-        model.add(tf.keras.layers.MaxPool3D())
-        model.add(tf.keras.layers.Conv3D(512, kernel_size=3, strides=1, padding="valid", activation="selu",
-                                         kernel_regularizer=tf.keras.regularizers.l2(0.1),))
-#        model.add(tf.keras.layers.Dropout(0.5))
-        model.add(tf.keras.layers.MaxPool3D())
-        model.add(tf.keras.layers.Flatten())
-#        model.add(tf.keras.layers.Dense(1024, activation="selu"))
-#        model.add(tf.keras.layers.Dropout(0.5))
-#        model.add(tf.keras.layers.Dense(512, activation="selu"))
-#        model.add(tf.keras.layers.Dropout(0.5))
-#        model.add(tf.keras.layers.Dense(128, activation="selu"))
-#        model.add(tf.keras.layers.Dropout(0.5))
-        model.add(tf.keras.layers.Dense(2, activation="softmax"))
-        model.summary()
+    print("Training Data...")
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Conv3D(64, kernel_size=5, strides=(3, 3, 1), padding="valid", activation="selu",
+                                     input_shape=[256, 256, 20, 1]))
+    # model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.MaxPool3D())
+    model.add(tf.keras.layers.Conv3D(128, kernel_size=3, strides=1, padding="valid", activation="selu"))
+    # model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.MaxPool3D())
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(5, activation="softmax"))
+    model.summary()
 
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001), loss="sparse_categorical_crossentropy",
-                      metrics=["acc"])
-        history = model.fit(X_train, y_train, batch_size=5, epochs=100, validation_split=0.2)
+    model.compile(optimizer=tf.keras.optimizers.Adam(0.0001), loss="sparse_categorical_crossentropy", metrics=["acc"])
+    history = model.fit(X_train, y_train, batch_size=1, epochs=200, validation_split=0.2)
 
-        model.evaluate(X_test, y_test)
+    print("Evaluate Data...")
+    model.evaluate(X_test, y_test)
 
-    plt.figure(1,(8,5))
-    plt.ylim(0,1)
+    print("Draw Figure...")
+    plt.figure(1, (8, 5))
+    plt.ylim(0, 1)
     plt.grid(True)
-    # plt.plot(history.epoch, history.history.get("loss"), label="loss")
-    # plt.plot(history.epoch, history.history.get("val_loss"), label="val_loss")
     plt.plot(history.epoch, history.history.get("acc"), label="acc")
     plt.plot(history.epoch, history.history.get("val_acc"), label="val_acc")
     plt.legend()
-    plt.show()
-    plt.savefig("./a.png")
+    # plt.show()
+    plt.savefig("./acc.png")
 
+    plt.figure(2, (8, 5))
+    plt.grid(True)
+    plt.plot(history.epoch, history.history.get("loss"), label="loss")
+    plt.plot(history.epoch, history.history.get("val_loss"), label="val_loss")
+    plt.legend()
+    # plt.show()
+    plt.savefig("./loss.png")
+
+    print("Save Model...")
     model.save("./model.h5")
