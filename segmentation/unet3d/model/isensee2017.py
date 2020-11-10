@@ -14,26 +14,7 @@ create_convolution_block = partial(create_convolution_block, activation=LeakyReL
 def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
                       n_segmentation_levels=3, n_labels=4, optimizer=Adam, initial_learning_rate=5e-4,
                       loss_function=weighted_dice_coefficient_loss, activation_name="sigmoid"):
-    """
-    This function builds a model proposed by Isensee et al. for the BRATS 2017 competition:
-    https://www.cbica.upenn.edu/sbia/Spyridon.Bakas/MICCAI_BraTS/MICCAI_BraTS_2017_proceedings_shortPapers.pdf
 
-    This network is highly similar to the model proposed by Kayalibay et al. "CNN-based Segmentation of Medical
-    Imaging Data", 2017: https://arxiv.org/pdf/1701.03056.pdf
-
-
-    :param input_shape:
-    :param n_base_filters:
-    :param depth:
-    :param dropout_rate:
-    :param n_segmentation_levels:
-    :param n_labels:
-    :param optimizer:
-    :param initial_learning_rate:
-    :param loss_function:
-    :param activation_name:
-    :return:
-    """
     inputs = Input(input_shape)
 
     current_layer = inputs
