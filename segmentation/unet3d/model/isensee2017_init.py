@@ -7,51 +7,31 @@ from keras.optimizers import Adam
 from .unet import create_convolution_block, concatenate
 from ..metrics import weighted_dice_coefficient_loss
 
+
 create_convolution_block = partial(create_convolution_block, activation=LeakyReLU, instance_normalization=True)
 
 
 def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
                       n_segmentation_levels=3, n_labels=4, optimizer=Adam, initial_learning_rate=5e-4,
                       loss_function=weighted_dice_coefficient_loss, activation_name="sigmoid"):
-    """
-    This function builds a model proposed by Isensee et al. for the BRATS 2017 competition:
-    https://www.cbica.upenn.edu/sbia/Spyridon.Bakas/MICCAI_BraTS/MICCAI_BraTS_2017_proceedings_shortPapers.pdf
 
-    This network is highly similar to the model proposed by Kayalibay et al. "CNN-based Segmentation of Medical
-    Imaging Data", 2017: https://arxiv.org/pdf/1701.03056.pdf
-
-
-    :param input_shape:
-    :param n_base_filters:
-    :param depth:
-    :param dropout_rate:
-    :param n_segmentation_levels:
-    :param n_labels:
-    :param optimizer:
-    :param initial_learning_rate:
-    :param loss_function:
-    :param activation_name:
-    :return:
-    """
     inputs = Input(input_shape)
 
     current_layer = inputs
     level_output_layers = list()
     level_filters = list()
     for level_number in range(depth):
-        n_level_filters = (2 ** level_number) * n_base_filters
+        n_level_filters = (2**level_number) * n_base_filters
         level_filters.append(n_level_filters)
 
         if current_layer is inputs:
-            init = create_convolution_block(current_layer, n_level_filters, kernel=(1, 1, 1))
-            in_conv = create_convolution_block(init, n_level_filters)
+            in_conv = create_convolution_block(current_layer, n_level_filters)
         else:
-            init = create_convolution_block(current_layer, n_level_filters, kernel=(1, 1, 1), strides=(2,2,2))
-            in_conv = create_convolution_block(init, n_level_filters)
+            in_conv = create_convolution_block(current_layer, n_level_filters, strides=(2, 2, 2))
 
         context_output_layer = create_context_module(in_conv, n_level_filters, dropout_rate=dropout_rate)
 
-        summation_layer = Add()([init, in_conv, context_output_layer])
+        summation_layer = Add()([in_conv, context_output_layer])
         level_output_layers.append(summation_layer)
         current_layer = summation_layer
 
@@ -78,7 +58,6 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     activation_block = Activation(activation_name)(output_layer)
 
     model = Model(inputs=inputs, outputs=activation_block)
-    model.summary()
     model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function)
     return model
 
@@ -100,3 +79,6 @@ def create_context_module(input_layer, n_level_filters, dropout_rate=0.3, data_f
     dropout = SpatialDropout3D(rate=dropout_rate, data_format=data_format)(convolution1)
     convolution2 = create_convolution_block(input_layer=dropout, n_filters=n_level_filters)
     return convolution2
+
+
+

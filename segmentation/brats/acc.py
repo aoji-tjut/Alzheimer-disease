@@ -7,7 +7,7 @@ import nibabel as nib
 # 4-黄-海马体
 # 5-青-中脑
 # 6-紫-半卵圆中心
-y_label = nib.load("C:/Users/Administrator/Desktop/result/seg.nii")
+y_label = nib.load("C:/Users/Administrator/Desktop/seg.nii")
 # y_pred = nib.load("C:/Users/Administrator/Desktop/result/pre_64-64-20_32-32-32_16_0.0003_0.5.nii")
 y_pred = nib.load("C:/Users/Administrator/Desktop/Valid_01.nii")
 
@@ -49,18 +49,18 @@ for label in [1, 2, 3, 4, 5, 6]:
                 else:
                     tn += 1
 
-        if union != 0:
+        if union != 0 and intersection != 0:
             iou = np.append(iou, intersection / union)
-        if (tp + fn + fp + tn) != 0:
-            accuracy = np.append(accuracy, (tp + tn) / (tp + fn + fp + tn))
-        if (tp + fp) != 0:
+        if (tp + fp) !=0  and tp != 0:
             precision = np.append(precision, (tp) / (tp + fp))
-        if (tp + fn) != 0:
+        if (tp + fn) != 0 and tp != 0:
             recall = np.append(recall, (tp) / (tp + fn))
 
     print("label\t\t", label)
+    print(iou)
+    print(precision)
+    print(recall)
     print("iou\t\t\t", iou.mean())
-    print("accuracy\t", accuracy.mean())
     print("precision\t", precision.mean())
     print("recall\t\t", recall.mean())
     print("dice\t\t", (2 * precision.mean() * recall.mean()) / (precision.mean() + recall.mean()))
