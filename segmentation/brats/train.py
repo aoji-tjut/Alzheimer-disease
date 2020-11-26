@@ -14,7 +14,6 @@ config["patch_shape"] = (32,32,32)  # None  # switch to None to train on the who
 config["labels"] = (1,2,3,4,5,6)  # the label numbers on the input image
 config["n_base_filters"] = 32  # these are doubled after each downsampling
 config["n_labels"] = len(config["labels"])
-#config["all_modalities"] = ["t1", "t1ce", "flair", "t2"]  # set for the brats data
 config["all_modalities"] = ["t1", "t2"]  # set for the brats data
 config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
 config["nb_channels"] = len(config["training_modalities"])
@@ -55,7 +54,7 @@ def fetch_brats_2020_files(modalities, group="Train", include_truth=True, return
     if include_truth:
         modalities = modalities + ["seg"]
 
-    for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data/{0}/*/T1", "*{0}*").format(group)):
+    for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data/{0}/*", "*{0}*").format(group)):
         subject_id = os.path.basename(subject_dir)
         print(subject_id)
         subject_ids.append(subject_id)
