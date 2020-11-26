@@ -8,13 +8,14 @@ from unet3d.training import load_old_model, train_model
 
 
 config = dict()
-config["image_shape"] = (256, 256, 20)  # This determines what shape the images will be cropped/resampled to.
+config["gpu"] = "0"
+config["image_shape"] = (64, 64, 20)  # This determines what shape the images will be cropped/resampled to.
 config["patch_shape"] = (32,32,32)  # None  # switch to None to train on the whole image
-config["labels"] = (4, 5)  # the label numbers on the input image
+config["labels"] = (1,2,3,4,5,6)  # the label numbers on the input image
 config["n_base_filters"] = 32  # these are doubled after each downsampling
 config["n_labels"] = len(config["labels"])
 #config["all_modalities"] = ["t1", "t1ce", "flair", "t2"]  # set for the brats data
-config["all_modalities"] = ["t1"]  # set for the brats data
+config["all_modalities"] = ["t1", "t2"]  # set for the brats data
 config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
 config["nb_channels"] = len(config["training_modalities"])
 if "patch_shape" in config and config["patch_shape"] is not None:
@@ -27,9 +28,9 @@ config["deconvolution"] = True  # if False, will use upsampling instead of decon
 config["batch_size"] = 1
 config["validation_batch_size"] = 2
 config["n_epochs"] = 500  # cutoff the training after this many epochs
-config["patience"] = 20  # learning rate will be reduced after this many epochs if the validation loss is not improving
-config["early_stop"] = 100  # training will be stopped after this many epochs without the validation loss improving
-config["initial_learning_rate"] = 0.03
+config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
+config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
+config["initial_learning_rate"] = 0.0001
 config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
 config["validation_split"] = 0.8  # portion of the data that will be used for training
 config["flip"] = False  # augments the data by randomly flipping an axis during
@@ -112,9 +113,6 @@ def main(overwrite=False):
         augment_flip=config["flip"],
         augment_distortion_factor=config["distort"])
 
-    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
-
     # run training
     train_model(model=model,
                 model_file=config["model_file"],
@@ -131,4 +129,5 @@ def main(overwrite=False):
 
 
 if __name__ == "__main__":
+    os.environ["CUDA_VISIBLE_DEVICES"] = config["gpu"]
     main(overwrite=config["overwrite"])
