@@ -9,7 +9,7 @@ create_convolution_block = partial(create_convolution_block, activation=LeakyReL
 
 
 def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
-                      n_segmentation_levels=4, n_labels=3, optimizer=Adam, initial_learning_rate=5e-4,
+                      n_segmentation_levels=3, n_labels=3, optimizer=Adam, initial_learning_rate=5e-4,
                       loss_function=weighted_dice_coefficient_loss, activation_name="sigmoid"):
     inputs = Input(input_shape)
 
@@ -21,29 +21,42 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
         level_filters.append(n_level_filters)
 
         if current_layer is inputs:
-            conv1 = conv(current_layer, n_level_filters, kernel=(1, 1, 1), strides=(1, 1, 1), dropout_rate=dropout_rate)
+            conv1 = create_convolution_block(current_layer, n_level_filters, kernel=(1, 1, 1), strides=(1, 1, 1))
         else:
-            conv1 = conv(current_layer, n_level_filters, kernel=(1, 1, 1), strides=(2, 2, 2), dropout_rate=dropout_rate)
+            conv1 = create_convolution_block(current_layer, n_level_filters, kernel=(1, 1, 1), strides=(2, 2, 2))
 
-        conv3 = conv(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        summation_layer = Add()([conv1, conv3])
+        #conv3 = create_convolution_block(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        #conv3 = create_convolution_block(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        #conv3 = create_convolution_block(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        #dropout = SpatialDropout3D(rate=dropout_rate, data_format="channels_first")(conv3)
+        #summation_layer = Add()([conv1, dropout])
 
-        # conv5 = conv(conv1, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # summation_layer = Add()([conv1, conv5])
+        #conv5 = create_convolution_block(conv1, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        #conv5 = create_convolution_block(conv5, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        #conv5 = create_convolution_block(conv5, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        #dropout = SpatialDropout3D(rate=dropout_rate, data_format="channels_first")(conv5)
+        #summation_layer = Add()([conv1, dropout])
 
-        # conv3 = conv(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # conv3 = conv(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # summation_layer = Add()([conv1, conv3])
+        conv3 = create_convolution_block(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        conv3 = create_convolution_block(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        conv3 = create_convolution_block(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        dropout_conv3 = SpatialDropout3D(rate=dropout_rate, data_format="channels_first")(conv3)
+        conv5 = create_convolution_block(conv1, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        conv5 = create_convolution_block(conv5, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        conv5 = create_convolution_block(conv5, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        dropout_conv5 = SpatialDropout3D(rate=dropout_rate, data_format="channels_first")(conv5)
+        summation_layer = Add()([conv1, dropout_conv3, dropout_conv5])
 
-        # conv3 = conv(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # conv5 = conv(conv1, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # summation_layer = Add()([conv1, conv3, con5])
-
-        # conv3 = conv(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # conv5 = conv(conv1, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # concat = concatenate([conv3, conv5], axis=1)
-        # conv_concat = conv(concat, n_level_filters, kernel=(1, 1, 1), strides=(1, 1, 1), dropout_rate=dropout_rate)
-        # summation_layer_Add()([conv1, conv_concat])
+        #conv3 = create_convolution_block(conv1, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        #conv3 = create_convolution_block(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        #conv3 = create_convolution_block(conv3, n_level_filters, kernel=(3, 3, 3), strides=(1, 1, 1))
+        #conv5 = create_convolution_block(conv1, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        #conv5 = create_convolution_block(conv5, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        #conv5 = create_convolution_block(conv5, n_level_filters, kernel=(5, 5, 5), strides=(1, 1, 1))
+        #concat = concatenate([conv3, conv5], axis=1)
+        #conv_concat = create_convolution_block(concat, n_level_filters, kernel=(1, 1, 1), strides=(1, 1, 1))
+        #dropout = SpatialDropout3D(rate=dropout_rate, data_format="channels_first")(conv_concat)
+        #summation_layer_Add()([conv1, dropout])
 
         level_output_layers.append(summation_layer)
         current_layer = summation_layer
