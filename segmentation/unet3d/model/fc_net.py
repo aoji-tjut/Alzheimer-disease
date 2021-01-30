@@ -1,5 +1,5 @@
 from functools import partial
-import keras.layers as l
+
 from keras.layers import Input, LeakyReLU, Add, UpSampling3D, Activation, SpatialDropout3D, Conv3D
 from keras.engine import Model
 from keras.optimizers import Adam
