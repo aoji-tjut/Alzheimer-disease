@@ -1,13 +1,8 @@
-from functools import partial
+# u-net
 import keras.layers as l
-from keras.layers import Input, LeakyReLU, Add, UpSampling3D, Activation, SpatialDropout3D, Conv3D
 from keras.engine import Model
 from keras.optimizers import Adam
-
-from .unet import create_convolution_block, concatenate
 from ..metrics import weighted_dice_coefficient_loss
-
-create_convolution_block = partial(create_convolution_block, activation=LeakyReLU, instance_normalization=True)
 
 
 def Conv(input, out_dim):
@@ -33,7 +28,7 @@ def Pool(input):
 
 
 def Concat(x, y):
-    concat = l.Concatenate(axis=-1)([x, y])
+    concat = l.Concatenate(axis=1)([x, y])
     return concat
 
 
@@ -41,7 +36,7 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
                       n_segmentation_levels=3, n_labels=4, optimizer=Adam, initial_learning_rate=5e-4,
                       loss_function=weighted_dice_coefficient_loss, activation_name="sigmoid"):
     input = l.Input(input_shape)
-    dim = 16
+    dim = n_base_filters
 
     # Down sampling
     down1 = Conv(input, dim * 1)
@@ -74,12 +69,10 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     concat5 = Concat(up5, down1)
     conv5 = Conv(concat5, dim * 1)
 
-    output = l.Conv3D(6, kernel_size=3, strides=1, padding="same", activation=l.LeakyReLU)(conv5)
+    output = l.Conv3D(n_labels, kernel_size=3, strides=1, padding="same", activation="sigmoid")(conv5)
 
     model = Model(inputs=input, outputs=output)
-
     model.summary()
-
-    model = Model(inputs=input, outputs=output)
     model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function)
+
     return model
