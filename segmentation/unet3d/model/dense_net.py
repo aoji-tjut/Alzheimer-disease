@@ -1,79 +1,127 @@
-from functools import partial
-
-from keras.layers import Input, LeakyReLU, Add, UpSampling3D, Activation, SpatialDropout3D, Conv3D
+import tensorflow as tf
+import keras.layers as l
 from keras.engine import Model
 from keras.optimizers import Adam
-
-from .unet import create_convolution_block, concatenate
 from ..metrics import weighted_dice_coefficient_loss
 
-create_convolution_block = partial(create_convolution_block, activation=LeakyReLU, instance_normalization=True)
+
+def conv_block(x, stage, branch, nb_filter, dropout_rate=None):
+    conv_name_base = 'conv' + str(stage) + '_' + str(branch)
+    relu_name_base = 'relu' + str(stage) + '_' + str(branch)
+
+    # 1x1 Convolution (Bottleneck layer)
+    inter_channel = nb_filter * 4
+    x = l.BatchNormalization(name=conv_name_base + '_x1_bn', axis=1)(x)
+    x = l.Activation('relu', name=relu_name_base + '_x1')(x)
+    x = l.Conv3D(inter_channel, kernel_size=1, strides=1, name=conv_name_base + '_x1', use_bias=False)(x)
+
+    if dropout_rate:
+        x = l.Dropout(dropout_rate)(x)
+
+    # 3x3 Convolution
+    x = l.BatchNormalization(name=conv_name_base + '_x2_bn', axis=1)(x)
+    x = l.Activation('relu', name=relu_name_base + '_x2')(x)
+    x = l.ZeroPadding3D((1, 1, 1), name=conv_name_base + '_x2_zeropadding')(x)
+    x = l.Conv3D(nb_filter, kernel_size=3, strides=1, name=conv_name_base + '_x2', use_bias=False)(x)
+
+    if dropout_rate:
+        x = l.Dropout(dropout_rate)(x)
+    return x
+
+
+def se_block(x, stage, previous, nb_filter, ratio=16):
+    se_name = 'se' + str(stage) + '_' + previous
+    init = x
+    x = l.GlobalAveragePooling3D(name='global_average_pooling_3D_' + se_name)(x)
+    x = l.Dense(nb_filter // ratio, name='dense_relu_' + se_name)(x)
+    x = l.Activation('relu', name='relu_' + se_name)(x)
+    x = l.Dense(nb_filter, name='dense_sigmoid_' + se_name)(x)
+    x = l.Activation('sigmoid', name='sigmoid_' + se_name)(x)
+    x = tf.expand_dims(x, 1)
+    x = init * tf.expand_dims(x, 1)
+    return x
+
+
+def dense_block(x, stage, nb_layers, nb_filter, growth_rate, dropout_rate=None,
+                grow_nb_filters=True):
+    concat_feat = x
+    for i in range(nb_layers):
+        branch = i + 1
+        x = conv_block(concat_feat, stage, branch, growth_rate, dropout_rate)
+        concat_feat = l.Concatenate(axis=1)([concat_feat, x])
+
+        if grow_nb_filters:
+            nb_filter += growth_rate
+
+    return concat_feat, nb_filter
+
+
+def transition_block(x, stage, nb_filter, compression=1.0, dropout_rate=None):
+    conv_name_base = 'conv' + str(stage) + '_blk'
+    relu_name_base = 'relu' + str(stage) + '_blk'
+    pool_name_base = 'pool' + str(stage)
+
+    x = l.BatchNormalization(name=conv_name_base + '_bn', axis=1)(x)
+    x = l.Activation('relu', name=relu_name_base)(x)
+    x = l.Conv3D(int(nb_filter * compression), kernel_size=1, strides=1, name=conv_name_base, use_bias=False)(x)
+
+    if dropout_rate:
+        x = l.Dropout(dropout_rate)(x)
+
+    # x = l.AveragePooling3D((2, 2, 2), strides=(2, 2, 2), name=pool_name_base)(x)
+
+    return x
 
 
 def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
                       n_segmentation_levels=3, n_labels=4, optimizer=Adam, initial_learning_rate=5e-4,
                       loss_function=weighted_dice_coefficient_loss, activation_name="sigmoid"):
-    inputs = Input(input_shape)
+    growth_rate = 32
+    nb_layers = [6, 12, 24, 16]
+    reduction = 0
+    batch_size = 32
 
-    current_layer = inputs
-    level_output_layers = list()
-    level_filters = list()
-    for level_number in range(depth):
-        n_level_filters = (2 ** level_number) * n_base_filters
-        level_filters.append(n_level_filters)
+    # compute compression factor
+    compression = 1.0 - reduction
 
-        if current_layer is inputs:
-            in_conv = create_convolution_block(current_layer, n_level_filters)
-        else:
-            in_conv = create_convolution_block(current_layer, n_level_filters, strides=(2, 2, 2))
+    nb_dense_block = len(nb_layers)
+    # From architecture for ImageNet (Table 1 in the paper)
+    # nb_filter = 64
+    # nb_layers = [6,12,24,16] # For DenseNet-121
 
-        context_output_layer = create_context_module(in_conv, n_level_filters, dropout_rate=dropout_rate)
+    input = l.Input(shape=input_shape, name='data')
 
-        summation_layer = Add()([in_conv, context_output_layer])
-        level_output_layers.append(summation_layer)
-        current_layer = summation_layer
+    x = l.ZeroPadding3D((3, 3, 3), name='conv1_zeropadding', batch_size=batch_size)(input)
+    x = l.Conv3D(n_base_filters, kernel_size=7, strides=2, name='conv1', use_bias=False)(x)
+    x = l.BatchNormalization(name='conv1_bn', axis=1)(x)
+    x = l.Activation('relu', name='relu1')(x)
+    x = l.ZeroPadding3D((1, 1, 1), name='pool1_zeropadding')(x)
+    x = l.MaxPooling3D((3, 3, 3), strides=(2, 2, 2), name='pool1')(x)
 
-    segmentation_layers = list()
-    for level_number in range(depth - 2, -1, -1):
-        up_sampling = create_up_sampling_module(current_layer, level_filters[level_number])
-        concatenation_layer = concatenate([level_output_layers[level_number], up_sampling], axis=1)
-        localization_output = create_localization_module(concatenation_layer, level_filters[level_number])
-        current_layer = localization_output
-        if level_number < n_segmentation_levels:
-            segmentation_layers.insert(0, Conv3D(n_labels, (1, 1, 1))(current_layer))
+    stage = 0
+    # Add dense blocks
+    for block_idx in range(nb_dense_block - 1):
+        stage = block_idx + 2
+        x, n_base_filters = dense_block(x, stage, nb_layers[block_idx], n_base_filters, growth_rate,
+                                        dropout_rate=dropout_rate)
 
-    output_layer = None
-    for level_number in reversed(range(n_segmentation_levels)):
-        segmentation_layer = segmentation_layers[level_number]
-        if output_layer is None:
-            output_layer = segmentation_layer
-        else:
-            output_layer = Add()([output_layer, segmentation_layer])
+        # Add transition_block
+        x = transition_block(x, stage, n_base_filters, compression=compression, dropout_rate=dropout_rate)
+        n_base_filters = int(n_base_filters * compression)
 
-        if level_number > 0:
-            output_layer = UpSampling3D(size=(2, 2, 2))(output_layer)
+    final_stage = stage + 1
+    x, n_base_filters = dense_block(x, final_stage, nb_layers[-1], n_base_filters, growth_rate,
+                                    dropout_rate=dropout_rate)
 
-    activation_block = Activation(activation_name)(output_layer)
+    x = l.Conv3D(n_labels, kernel_size=3, strides=1, padding="same")(x)
+    x = l.BatchNormalization(name='conv_final_blk_bn', axis=1)(x)
+    output = l.Activation('relu', name='relu_final_blk')(x)
 
-    model = Model(inputs=inputs, outputs=activation_block)
+    # x = l.GlobalAveragePooling3D(name='pool_final')(x)
+    # x = l.Dense(n_labels, name='fc6')(x)
+    # output = l.Activation('softmax', name='prob')(x)
+
+    model = Model(inputs=input, outputs=output)
+    model.summary()
     model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function)
     return model
-
-
-def create_localization_module(input_layer, n_filters):
-    convolution1 = create_convolution_block(input_layer, n_filters)
-    convolution2 = create_convolution_block(convolution1, n_filters, kernel=(1, 1, 1))
-    return convolution2
-
-
-def create_up_sampling_module(input_layer, n_filters, size=(2, 2, 2)):
-    up_sample = UpSampling3D(size=size)(input_layer)
-    convolution = create_convolution_block(up_sample, n_filters)
-    return convolution
-
-
-def create_context_module(input_layer, n_level_filters, dropout_rate=0.3, data_format="channels_first"):
-    convolution1 = create_convolution_block(input_layer=input_layer, n_filters=n_level_filters)
-    dropout = SpatialDropout3D(rate=dropout_rate, data_format=data_format)(convolution1)
-    convolution2 = create_convolution_block(input_layer=dropout, n_filters=n_level_filters)
-    return convolution2
